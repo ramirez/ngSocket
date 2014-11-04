@@ -87,9 +87,13 @@ angular.module('ngSocket', []).
   factory('ngWebSocket', ['ngSocket', function(ngSocket){
     return ngSocket;
   }]).
-  factory('ngSocket', ['$rootScope', '$q', 'ngSocketBackend', function ($rootScope, $q, ngSocketBackend) {
+  factory('ngSocket', ['$rootScope', '$q', '$timeout', 'ngSocketBackend', function ($rootScope, $q, $timeout, ngSocketBackend) {
       var NGWebSocket = function (url) {
         this.url = url;
+        this._reconnectAttempts = 0;
+        this.initialTimeout = 500; // 500ms
+        this.maxTimeout = 0.5 * 60 * 1000; // 30 seconds
+        this._closedByHand = false;
         this.sendQueue = [];
         this.onOpenCallbacks = [];
         this.onMessageCallbacks = [];
@@ -107,21 +111,39 @@ angular.module('ngSocket', []).
       };
 
       NGWebSocket.prototype._reconnectableStatusCodes = [
-        5000
+        4000, 1006
       ];
 
+      NGWebSocket.prototype.clearOpenCallbacks = function () {
+        this.onOpenCallbacks = [];
+      };
+
+      NGWebSocket.prototype.clearCallbacks = function () {
+        this.onOpenCallbacks = [];
+        this.onMessageCallbacks = []; 
+      };
+
       NGWebSocket.prototype.close = function (force) {
-        if (force || !this.socket.bufferedAmount) {
+        if (force || !this.socket.bufferedAmount) { console.log("ngSocket:will close");
           this.socket.close();
+          this._closedByHand = true;
+          console.log("ngSocket:closed!");
         }
       };
 
-      NGWebSocket.prototype._connect = function (force) {
-        if (force || !this.socket || this.socket.readyState !== 1) {
+      NGWebSocket.prototype._connect = function (force) {console.log("ngSocket:will connect");
+        if (force || !this.socket || this.socket.readyState !== 1) {console.log("ngSocket: connecting");
           this.socket = ngSocketBackend.createWebSocketBackend(this.url)
           this.socket.onopen = this._onOpenHandler.bind(this);
           this.socket.onmessage = this._onMessageHandler.bind(this);
           this.socket.onclose = this._onCloseHandler.bind(this);
+          this._closedByHand = false;
+
+          if (!$rootScope.$$phase) {
+            $rootScope.$digest();
+          }
+        
+
         }
       };
 
@@ -138,7 +160,7 @@ angular.module('ngSocket', []).
         }
       };
 
-      NGWebSocket.prototype.notifyOpenCallbacks = function () {
+      NGWebSocket.prototype.notifyOpenCallbacks = function () { 
         for (var i = 0; i < this.onOpenCallbacks.length; i++) {
           this.onOpenCallbacks[i].call(this);
         }
@@ -192,12 +214,13 @@ angular.module('ngSocket', []).
       };
 
       NGWebSocket.prototype._onOpenHandler = function () {
+        this._reconnectAttempts = 0;
         this.notifyOpenCallbacks();
         this.fireQueue();
       };
 
-      NGWebSocket.prototype._onCloseHandler = function (event) {
-        if (this._reconnectableStatusCodes.indexOf(event.statusCode) > -1) {
+      NGWebSocket.prototype._onCloseHandler = function (event) { console.log(event);
+        if ((this._reconnectableStatusCodes.indexOf(event.code) > -1) && (!this._closedByHand)) {
           this.reconnect();
         }
       };
@@ -238,8 +261,35 @@ angular.module('ngSocket', []).
         return promise;
       };
 
-      NGWebSocket.prototype.reconnect = function () {
+      NGWebSocket.prototype.reconnect = function () { console.log("ngSocket: will try to reconnect");
+        
+        this.close(true);
+        this._closedByHand = false;
+        
+        $timeout(
+          angular.bind(
+            this, 
+            function () {
+              console.log("reconnecting");
+              this._connect(); 
+            }
+          ), 
+          this._getBackoffDelay(++this._reconnectAttempts)
+        );
+      };
+      
+      // Exponential Backoff Formula by Prof. Douglas Thain
+      // http://dthain.blogspot.co.uk/2009/02/exponential-backoff-in-distributed.html
+      NGWebSocket.prototype._getBackoffDelay = function(attempt) {
+        var R = Math.random() + 1,
+            T = this.initialTimeout,
+            F = 1.4,
+            N = attempt,
+            M = this.maxTimeout;
 
+        var delay = Math.floor(Math.min(R * T * Math.pow(F, N), M));
+        console.log(delay);
+        return delay;
       };
 
       NGWebSocket.prototype._setInternalState = function(state) {
