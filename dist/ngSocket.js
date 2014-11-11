@@ -128,18 +128,18 @@ angular.module('ngSocket', []).
       };
 
       NGWebSocket.prototype.close = function (force) {
-        if (force || !this.socket.bufferedAmount) { console.log("ngSocket:will close");
+        if (force || !this.socket.bufferedAmount) { //console.log("ngSocket:will close");
           this.socket.close();
           this._closedByHand = true;
-          if (this.reconnectTimeout) { console.log("canceling reconnection");
+          if (this.reconnectTimeout) { //console.log("canceling reconnection");
             $timeout.cancel(this.reconnectTimeout);
           }
-          console.log("ngSocket:closed!");
+          //console.log("ngSocket:closed!");
         }
       };
 
-      NGWebSocket.prototype._connect = function (force) {console.log("ngSocket:will connect");
-        if (force || !this.socket || this.socket.readyState !== 1) {console.log("ngSocket: connecting");
+      NGWebSocket.prototype._connect = function (force) {//console.log("ngSocket:will connect");
+        if (force || !this.socket || this.socket.readyState !== 1) {//console.log("ngSocket: connecting");
           this.socket = ngSocketBackend.createWebSocketBackend(this.url)
           this.socket.onopen = this._onOpenHandler.bind(this);
           this.socket.onmessage = this._onMessageHandler.bind(this);
@@ -226,8 +226,9 @@ angular.module('ngSocket', []).
         this.fireQueue();
       };
 
-      NGWebSocket.prototype._onCloseHandler = function (event) { console.log(event);
-        if ((this._reconnectableStatusCodes.indexOf(event.code) > -1) && (!this._closedByHand)) { console.log("ngSocket: try to reconnect", this._closedByHand);
+      NGWebSocket.prototype._onCloseHandler = function (event) { //console.log(event);
+        if ((this._reconnectableStatusCodes.indexOf(event.code) > -1) && (!this._closedByHand)) { 
+          //console.log("ngSocket: try to reconnect", this._closedByHand);
           this.reconnect();
         }
       };
@@ -268,16 +269,13 @@ angular.module('ngSocket', []).
         return promise;
       };
 
-      NGWebSocket.prototype.reconnect = function () { console.log("ngSocket: will try to reconnect");
-        
-        //this.close(true);
-        //this._closedByHand = false;
-        
+      NGWebSocket.prototype.reconnect = function () { //console.log("ngSocket: will try to reconnect");
+
         this.reconnectTimeout = $timeout(
           angular.bind(
             this, 
             function () {
-              console.log("reconnecting");
+              //console.log("reconnecting");
               this._connect(); 
             }
           ), 
@@ -295,7 +293,6 @@ angular.module('ngSocket', []).
             M = this.maxTimeout;
 
         var delay = Math.floor(Math.min(R * T * Math.pow(F, N), M));
-        console.log(delay);
         return delay;
       };
 
